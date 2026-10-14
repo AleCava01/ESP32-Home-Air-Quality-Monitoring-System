@@ -6,6 +6,8 @@ Little DIY ESP32 "rover style" meter with a Flask app and web dashboard to monit
 
 The ESP32 reads its sensors every few seconds and sends them over the local network to a Flask server running in Docker on my home server. The server stores everything in SQLite, serves the dashboard, and sends the LED configuration back to the ESP32 in the response to every upload.
 
+Live at: https://servitore-debianico.saury-cordylus.ts.net/
+
 ## Architecture
 
 ```

@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sensori · Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+:root{--bg:#eef1f6;--bg2:#dfe7f7;--card:rgba(255,255,255,.75);--fg:#18202e;--mut:#667085;--bd:rgba(20,30,50,.09);--ac:#4f6ef7;--sh:0 6px 28px rgba(30,40,80,.08)}
+[data-theme=dark]{--bg:#0b0f16;--bg2:#161e33;--card:rgba(26,33,48,.72);--fg:#e8ecf4;--mut:#8b96ab;--bd:rgba(255,255,255,.08);--ac:#7c93ff;--sh:0 6px 28px rgba(0,0,0,.4)}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,-apple-system,sans-serif;color:var(--fg);min-height:100vh;
+ background:radial-gradient(1000px 500px at 85% -10%,var(--bg2),transparent),var(--bg)}
+header{display:flex;justify-content:space-between;align-items:center;padding:18px 24px;max-width:1280px;margin:auto}
+.brand{display:flex;gap:12px;align-items:center}.logo{font-size:1.7rem;color:var(--ac)}
+h1{margin:0;font-size:1.25rem}small,.mut{color:var(--mut);font-size:.8rem}
+h3{margin:0;font-size:.95rem}
+main{max-width:1280px;margin:auto;padding:0 24px 32px;display:grid;gap:16px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:18px;box-shadow:var(--sh);backdrop-filter:blur(12px)}
+.hero{display:grid;grid-template-columns:minmax(260px,1fr) 1.4fr;gap:16px}
+.aqi{text-align:center}.aqi svg{width:100%;max-width:300px}
+.gv{font-size:2.6rem;font-weight:700;line-height:1}.gl{font-weight:600;margin-top:4px}
+.r{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--bd);font-size:.9rem}
+.r:last-child{border:0}.r span{color:var(--mut)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.m .l{color:var(--mut);font-size:.8rem}.m .v{font-size:1.7rem;font-weight:700;margin:2px 0}
+.m .u{font-size:.8rem;color:var(--mut);font-weight:400}.m svg{width:100%;height:32px;display:block;margin:6px 0 4px}
+.bar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+button,.btn,select,input{font:inherit;color:var(--fg);background:transparent;border:1px solid var(--bd);border-radius:10px;padding:7px 12px;cursor:pointer;text-decoration:none}
+.chips button.on,button.pri{background:var(--ac);border-color:var(--ac);color:#fff}
+.ghost:hover,.chips button:hover{border-color:var(--ac)}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:16px}.chart{height:240px}
+.pill{padding:4px 12px;border-radius:99px;font-size:.8rem;background:#ef444422;color:#ef4444;margin-right:8px}
+.pill.on{background:#22c55e22;color:#22c55e}.pill.on::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:#22c55e;margin-right:6px;animation:p 1.6s infinite}
+@keyframes p{50%{opacity:.25}}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin:12px 0}
+.tile{text-align:left;padding:12px;border-radius:14px}.tile b{display:block;font-size:1.2rem}
+.tile.on{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 14%,transparent)}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:end}
+label{display:flex;flex-direction:column;gap:4px;font-size:.78rem;color:var(--mut)}input{width:100px}
+.hide{display:none!important}
+.dot{display:inline-block;width:12px;height:12px;border-radius:50%;background:#6b7280;margin-right:8px;vertical-align:middle}
+.dot.on{background:#facc15;box-shadow:0 0 12px #facc15}.dot.pulse{background:#facc15;animation:p 1s infinite}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ac);color:#fff;padding:10px 18px;border-radius:12px;opacity:0;transition:.3s;pointer-events:none}
+#toast.s{opacity:1}
+@media(max-width:760px){.hero{grid-template-columns:1fr}.charts{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo">◉</span><div><h1>Sensori</h1><small id="age">in attesa di dati…</small></div></div>
+  <div><span id="st" class="pill">offline</span><button id="theme" class="ghost" title="Cambia tema">◐</button></div>
+</header>
+<main>
+  <section class="hero">
+    <div class="card aqi">
+      <h3>Qualità dell'aria · PM2.5</h3>
+      <svg viewBox="0 0 200 118"><path d="M10 105A90 90 0 0 1 190 105" fill="none" stroke="var(--bd)" stroke-width="14" stroke-linecap="round"/>
+        <path id="garc" d="M10 105A90 90 0 0 1 190 105" fill="none" stroke="#22c55e" stroke-width="14" stroke-linecap="round" stroke-dasharray="0 283" style="transition:.6s"/>
+        <text x="100" y="92" text-anchor="middle" class="gv" id="gv" fill="currentColor" font-size="34" font-weight="700">–</text>
+        <text x="100" y="110" text-anchor="middle" fill="var(--mut)" font-size="10">µg/m³</text></svg>
+      <div class="gl" id="gl">–</div><small>Scala indicativa EEA</small>
+    </div>
+    <div class="card"><h3 style="margin-bottom:6px">Riepilogo</h3><div id="sum"></div></div>
+  </section>
+
+  <section class="grid" id="cards"></section>
+
+  <section class="card">
+    <div class="bar"><h3>Storico</h3>
+      <div class="chips" id="chips"></div>
+      <a id="csv" class="btn ghost" href="#">⬇ Esporta CSV</a></div>
+    <div class="charts">
+      <div class="chart"><canvas id="c_temp"></canvas></div><div class="chart"><canvas id="c_hum"></canvas></div>
+      <div class="chart"><canvas id="c_press"></canvas></div><div class="chart"><canvas id="c_pm"></canvas></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="bar"><h3>Controllo LED · pin 5</h3><span class="mut"><i class="dot" id="dot"></i><span id="lt">–</span></span></div>
+    <div class="tiles" id="tiles"></div>
+    <div class="row">
+      <label class="th">Grandezza<select id="metric"></select></label>
+      <label class="th">Acceso se<select id="cmp"><option value="gt">maggiore di</option><option value="lt">minore di</option></select></label>
+      <label class="th">Soglia<input id="threshold" type="number" step="any"></label>
+      <label class="bl">Periodo (ms)<input id="blink_ms" type="number" min="100" max="5000" step="100"></label>
+      <label>Invio dati ogni (s)<input id="interval" type="number" min="2" max="300"></label>
+      <button class="pri" id="save">Applica</button>
+    </div>
+    <p class="mut" style="margin-bottom:0">Le modifiche raggiungono l'ESP32 al prossimo invio dati.</p>
+  </section>
+</main>
+<div id="toast"></div>
+
+<script>
+const $=i=>document.getElementById(i);
+const META={temp_aht:["Temp. AHT20","°C","🌡️"],hum:["Umidità","%","💧"],temp_bmp:["Temp. BMP280","°C","🌡️"],
+  press:["Pressione","hPa","🧭"],pm1:["PM1.0","µg/m³","🌫️"],pm25:["PM2.5","µg/m³","🌫️"],pm10:["PM10","µg/m³","🌫️"]};
+const COL={temp_aht:"#ef4444",temp_bmp:"#f59e0b",hum:"#3b82f6",press:"#8b5cf6",pm1:"#10b981",pm25:"#f97316",pm10:"#94a3b8"};
+const GROUPS={c_temp:["Temperatura (°C)",["temp_aht","temp_bmp"]],c_hum:["Umidità (%)",["hum"]],
+  c_press:["Pressione (hPa)",["press"]],c_pm:["Polveri (µg/m³)",["pm1","pm25","pm10"]]};
+const AQ=[[5,"Ottima","#22c55e"],[15,"Buona","#84cc16"],[50,"Moderata","#f59e0b"],[90,"Scadente","#f97316"],[140,"Molto scadente","#ef4444"],[1e9,"Pessima","#a21caf"]];
+const TILES=[["off","○","Spento","Sempre spento"],["on","●","Acceso","Sempre acceso"],["tx","⇄","Invio dati","Acceso quando invia"],["threshold","◐","Soglia","In base ai dati"],["blink","✦","Lampeggio","Periodo regolabile"]];
+const RANGES=[[15,"15 min"],[60,"1 h"],[360,"6 h"],[1440,"24 h"],[10080,"7 g"],[43200,"30 g"]];
+let last=null,sp=[],ST=null,minutes=60,INTERVAL=5,ledMode="tx";
+const j=async(u,o)=>(await fetch(u,o)).json();
+
+// ---- UI statica
+for(const k in META){
+  $("cards").insertAdjacentHTML("beforeend",`<div class="card m"><div class="l">${META[k][2]} ${META[k][0]}</div>
+   <div class="v"><span id="v_${k}">–</span> <span class="u">${META[k][1]}</span></div><div id="sp_${k}"></div><div class="mut" id="mm_${k}">&nbsp;</div></div>`);
+  $("metric").insertAdjacentHTML("beforeend",`<option value="${k}">${META[k][0]} (${META[k][1]})</option>`);
+}
+$("chips").innerHTML=RANGES.map(r=>`<button data-m="${r[0]}" class="${r[0]==60?"on":""}">${r[1]}</button>`).join("");
+$("chips").onclick=e=>{const m=e.target.dataset.m;if(!m)return;minutes=+m;
+  document.querySelectorAll("#chips button").forEach(b=>b.classList.toggle("on",b.dataset.m==m));loadHistory();};
+$("tiles").innerHTML=TILES.map(t=>`<button class="tile" data-mode="${t[0]}"><b>${t[1]}</b>${t[2]}<br><small>${t[3]}</small></button>`).join("");
+$("tiles").onclick=e=>{const t=e.target.closest(".tile");if(t){setMode(t.dataset.mode);}};
+function setMode(m){ledMode=m;document.querySelectorAll(".tile").forEach(t=>t.classList.toggle("on",t.dataset.mode==m));
+  document.querySelectorAll(".th").forEach(e=>e.classList.toggle("hide",m!="threshold"));
+  document.querySelectorAll(".bl").forEach(e=>e.classList.toggle("hide",m!="blink"));ledPreview();}
+["metric","cmp","threshold"].forEach(i=>$(i).oninput=ledPreview);
+
+// ---- tema
+const root=document.documentElement;
+root.dataset.theme=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");
+function chartTheme(){const s=getComputedStyle(root);Chart.defaults.color=s.getPropertyValue("--mut");Chart.defaults.borderColor=s.getPropertyValue("--bd");
+  Object.values(charts).forEach(c=>c.update());}
+$("theme").onclick=()=>{root.dataset.theme=root.dataset.theme=="dark"?"light":"dark";localStorage.setItem("theme",root.dataset.theme);chartTheme();};
+
+// ---- grafici
+const charts={};
+for(const[id,[title,keys]]of Object.entries(GROUPS)){
+  charts[id]=new Chart($(id),{type:"line",data:{labels:[],datasets:keys.map(k=>({label:META[k][0],data:[],borderColor:COL[k],
+    backgroundColor:COL[k]+(keys.length==1?"22":"ff"),fill:keys.length==1,pointRadius:0,borderWidth:2,tension:.35,spanGaps:true}))},
+    options:{animation:false,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},
+      plugins:{title:{display:true,text:title},legend:{display:keys.length>1}},scales:{x:{ticks:{maxTicksLimit:6},grid:{display:false}}}}});
+}
+chartTheme();
+
+// ---- helpers
+const aq=v=>AQ.find(a=>v<=a[0]);
+const fb=b=>b>1e12?(b/1e12).toFixed(2)+" TB":b>1e9?(b/1e9).toFixed(1)+" GB":(b/1e6).toFixed(1)+" MB";
+function spark(vals,c){const v=vals.filter(x=>x!=null);if(v.length<2)return"";const lo=Math.min(...v),hi=Math.max(...v);
+  const p=v.map((x,i)=>(i/(v.length-1)*100).toFixed(1)+","+(30-(x-lo)/((hi-lo)||1)*28).toFixed(1)).join(" ");
+  return`<svg viewBox="0 0 100 32" preserveAspectRatio="none"><polyline fill="none" stroke="${c}" stroke-width="1.8" vector-effect="non-scaling-stroke" points="${p}"/></svg>`;}
+function toast(t){$("toast").textContent=t;$("toast").classList.add("s");setTimeout(()=>$("toast").classList.remove("s"),2500);}
+
+// ---- rendering
+function render(now){
+  if(!last)return;
+  const age=now-last.ts,on=age<Math.max(30,INTERVAL*4);
+  $("st").textContent=on?"online":"offline";$("st").className="pill"+(on?" on":"");
+  $("age").textContent="Ultimo dato "+(age<60?age+" s":Math.round(age/60)+" min")+" fa · "+last.device;
+  for(const k in META)$("v_"+k).textContent=last[k]==null?"–":last[k].toFixed(1);
+  const p=last.pm25;
+  if(p!=null){const a=aq(p);$("gv").textContent=p.toFixed(1);$("gl").textContent=a[1];$("gl").style.color=a[2];
+    $("garc").setAttribute("stroke-dasharray",(Math.min(p/150,1)*283)+" 283");$("garc").style.stroke=a[2];}
+  summary();ledPreview();
+}
+function summary(){
+  const t=last.temp_aht,h=last.hum;let dp="–",cf="–",tr="–";
+  if(t!=null&&h!=null){const g=Math.log(h/100)+17.62*t/(243.12+t);dp=(243.12*g/(17.62-g)).toFixed(1)+" °C";cf=h<30?"Aria secca":h>60?"Aria umida":"Confortevole";}
+  const ps=sp.map(r=>r.press).filter(v=>v!=null);
+  if(ps.length>5){const d=ps[ps.length-1]-ps[0];tr=(d>1?"↗ in salita":d<-1?"↘ in discesa":"→ stabile")+` (${d>0?"+":""}${d.toFixed(1)} hPa)`;}
+  const rows=[["Punto di rugiada",dp],["Comfort",cf],["Pressione, ultime 3 h",tr]];
+  if(ST){rows.push(["Letture nel database",ST.rows.toLocaleString("it")+" · "+fb(ST.db_bytes)],
+    ["Spazio libero sull'HDD",fb(ST.disk_free)+" / "+fb(ST.disk_total)],
+    ["Dati dal",ST.first?new Date(ST.first*1000).toLocaleDateString("it"):"–"]);}
+  $("sum").innerHTML=rows.map(r=>`<div class="r"><span>${r[0]}</span><b>${r[1]}</b></div>`).join("");
+}
+function ledPreview(){
+  let s="off",t="Spento";
+  if(ledMode=="on"){s="on";t="Acceso fisso";}
+  else if(ledMode=="tx"){s="pulse";t="Impulso a ogni invio";}
+  else if(ledMode=="blink"){s="pulse";t="Lampeggio";}
+  else if(ledMode=="threshold"&&last){const m=$("metric").value,v=last[m],th=+$("threshold").value;
+    if(v!=null){const on=$("cmp").value=="gt"?v>th:v<th;s=on?"on":"off";t=(on?"Acceso":"Spento")+` · ${META[m][0]} = ${v.toFixed(1)}`;}}
+  $("dot").className="dot "+s;$("lt").textContent="Stato previsto: "+t;
+}
+
+// ---- caricamento dati
+async function latest(){try{const d=await j("/api/latest");last=d.reading;render(d.now);}
+  catch(e){$("st").textContent="server non raggiungibile";$("st").className="pill";}}
+async function loadSpark(){sp=await j("/api/history?minutes=180");
+  for(const k in META)$("sp_"+k).innerHTML=spark(sp.map(r=>r[k]),COL[k]);
+  if(last)summary();}
+async function loadHistory(){
+  const rows=await j("/api/history?minutes="+minutes);
+  const f=ts=>{const d=new Date(ts*1000);return minutes>1440?d.toLocaleString("it",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):d.toLocaleTimeString("it",{hour:"2-digit",minute:"2-digit"});};
+  for(const[id,[,keys]]of Object.entries(GROUPS)){const c=charts[id];c.data.labels=rows.map(r=>f(r.ts));
+    keys.forEach((k,i)=>c.data.datasets[i].data=rows.map(r=>r[k]));c.update();}
+  for(const k in META){const v=rows.map(r=>r[k]).filter(x=>x!=null);
+    $("mm_"+k).textContent=v.length?`min ${Math.min(...v).toFixed(1)} · max ${Math.max(...v).toFixed(1)}`:"\u00a0";}
+  $("csv").href="/api/export.csv?minutes="+minutes;
+}
+async function loadLed(){const c=await j("/api/led");INTERVAL=c.interval;
+  $("metric").value=c.led.metric;$("cmp").value=c.led.cmp;$("threshold").value=c.led.threshold;
+  $("blink_ms").value=c.led.blink_ms;$("interval").value=c.interval;setMode(c.led.mode);}
+$("save").onclick=async()=>{
+  const c=await j("/api/led",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({mode:ledMode,
+    metric:$("metric").value,cmp:$("cmp").value,threshold:$("threshold").value,blink_ms:$("blink_ms").value,interval:$("interval").value})});
+  INTERVAL=c.interval;toast("Salvato · verrà applicato al prossimo invio");};
+const stats=async()=>{try{ST=await j("/api/stats");}catch(e){}};
+
+(async()=>{await loadLed();await Promise.all([latest(),stats(),loadSpark(),loadHistory()]);summary();})();
+setInterval(latest,3000);setInterval(loadHistory,20000);setInterval(loadSpark,30000);setInterval(stats,60000);
+</script>
+</body>
+</html>

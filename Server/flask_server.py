@@ -134,13 +134,23 @@ def stats():
 def export_csv():
     minutes = max(1, min(int(request.args.get("minutes", 60)), 60 * 24 * 3650))
     since = int(time.time()) - minutes * 60
-    cur = db().execute(f"SELECT ts, device, {', '.join(FIELDS)} FROM readings WHERE ts >= ? ORDER BY ts", (since,))
 
     def gen():
-        yield "timestamp,device," + ",".join(FIELDS) + "\n"
-        for r in cur:
-            t = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(r["ts"]))
-            yield f"{t},{r['device']}," + ",".join("" if r[f] is None else f"{r[f]:.2f}" for f in FIELDS) + "\n"
+        conn = sqlite3.connect(DB_PATH, timeout=10)
+        conn.row_factory = sqlite3.Row
+        try:
+            cur = conn.execute(
+                f"SELECT ts, device, {', '.join(FIELDS)} FROM readings WHERE ts >= ? ORDER BY ts",
+                (since,),
+            )
+            yield "timestamp,device," + ",".join(FIELDS) + "\n"
+            for r in cur:
+                t = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(r["ts"]))
+                yield f"{t},{r['device']}," + ",".join(
+                    "" if r[f] is None else f"{r[f]:.2f}" for f in FIELDS
+                ) + "\n"
+        finally:
+            conn.close()
 
     return Response(gen(), mimetype="text/csv",
                     headers={"Content-Disposition": "attachment; filename=sensori.csv"})

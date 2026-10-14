@@ -1,5 +1,7 @@
 # ESP32 Home Air Quality Monitoring System
 
+<img width="320" height="320" alt="ezgif-87979a7b5af0572f" src="https://github.com/user-attachments/assets/0572928d-6b8b-4f33-9b21-897be70a19e9" />
+
 Little DIY ESP32 "rover style" meter with a Flask app and web dashboard to monitor the air quality inside my house.
 
 The ESP32 reads its sensors every few seconds and sends them over the local network to a Flask server running in Docker on my home server. The server stores everything in SQLite, serves the dashboard, and sends the LED configuration back to the ESP32 in the response to every upload.

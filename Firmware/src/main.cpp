@@ -8,9 +8,10 @@
 #include <sps30.h>
 
 // ---------- CONFIGURAZIONE ----------
-const char* WIFI_SSID  = "...";
-const char* WIFI_PASS  = "...";
-const char* SERVER_URL = "http://192.168.1.XXX:8081/api/data";
+#include "secrets.h"
+//const char* WIFI_SSID  = "...";
+//const char* WIFI_PASS  = "...";
+//const char* SERVER_URL = "http://192.168.1.XXX:8081/api/data";
 const char* DEVICE_ID  = "Airometer_ESP32";
 
 #define I2C_SDA 10
@@ -32,7 +33,7 @@ String ledMetric = "pm25";      // temp_aht, hum, temp_bmp, press, pm1, pm25, pm
 String ledCmp    = "gt";        // gt (>) | lt (<)
 float  ledThreshold = 25.0;
 unsigned long ledBlinkMs = 500;
-unsigned long sendIntervalMs = 5000;
+unsigned long sendIntervalMs = 60000;
 
 unsigned long lastSend = 0, lastWifiTry = 0, txUntil = 0;
 
@@ -51,6 +52,16 @@ float metricValue(const String& m) {
 void updateLed() {
   static unsigned long lastToggle = 0;
   static bool blinkState = false;
+
+  // WiFi assente: lampeggio rapido, prioritario su qualsiasi modalità
+  if (WiFi.status() != WL_CONNECTED) {
+    if (millis() - lastToggle >= 200) {       // 200 ms = lampeggio veloce
+      lastToggle = millis();
+      blinkState = !blinkState;
+      digitalWrite(pinLed, blinkState);
+    }
+    return;
+  }
 
   if (ledMode == "off") {
     digitalWrite(pinLed, LOW);
@@ -77,16 +88,16 @@ void connectWifi(unsigned long timeoutMs) {
   delay(1000);
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
-  
+
   Serial.printf("[WiFi] Connessione a: %s\n", WIFI_SSID);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
-  
+
   unsigned long t0 = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - t0 < timeoutMs) {
     delay(250);
     Serial.print(".");
   }
-  
+
   if (WiFi.status() == WL_CONNECTED) {
     Serial.print("\n[WiFi] Connesso! Indirizzo IP: ");
     Serial.println(WiFi.localIP());
@@ -95,6 +106,17 @@ void connectWifi(unsigned long timeoutMs) {
     Serial.print("Stato WiFi attuale: ");
     Serial.println(WiFi.status()); // Stampa il codice numerico dell'errore
   }
+}
+
+// Controllo non bloccante: se il WiFi è caduto, riprova ogni 10 s
+void checkWifi() {
+  if (WiFi.status() == WL_CONNECTED) return;
+  if (millis() - lastWifiTry < 10000) return;   // riprova ogni 10 s
+
+  lastWifiTry = millis();
+  Serial.println("[WiFi] Connessione persa, riconnessione in corso...");
+  WiFi.disconnect();
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
 }
 
 void readSensors() {
@@ -161,7 +183,7 @@ void sendData() {
 
   WiFiClient client;
   HTTPClient http;
-  http.setTimeout(3000);
+  http.setTimeout(8000);
   if (http.begin(client, SERVER_URL)) {
     http.addHeader("Content-Type", "application/json");
     int code = http.POST(body);
@@ -211,12 +233,7 @@ void setup() {
 }
 
 void loop() {
-  // Riconnessione WiFi se persa
-  if (WiFi.status() != WL_CONNECTED && millis() - lastWifiTry > 10000) {
-    lastWifiTry = millis();
-    WiFi.disconnect();
-    WiFi.begin(WIFI_SSID, WIFI_PASS);
-  }
+  checkWifi();   // riconnessione automatica se il WiFi è caduto
 
   if (millis() - lastSend >= sendIntervalMs) {
     lastSend = millis();
@@ -224,6 +241,6 @@ void loop() {
     sendData();
   }
 
-  updateLed();
+  updateLed();   // lampeggia veloce se WiFi assente
   delay(10);
 }

@@ -88,7 +88,7 @@ void connectWifi(unsigned long timeoutMs) {
   delay(1000);
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
-
+  WiFi.setSleep(false);
   Serial.printf("[WiFi] Connessione a: %s\n", WIFI_SSID);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
 

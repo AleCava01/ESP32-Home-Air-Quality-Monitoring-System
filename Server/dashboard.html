@@ -4,7 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sensori · Dashboard</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <style>
 :root{--bg:#eef1f6;--bg2:#dfe7f7;--card:rgba(255,255,255,.75);--fg:#18202e;--mut:#667085;--bd:rgba(20,30,50,.09);--ac:#4f6ef7;--sh:0 6px 28px rgba(30,40,80,.08)}
 [data-theme=dark]{--bg:#0b0f16;--bg2:#161e33;--card:rgba(26,33,48,.72);--fg:#e8ecf4;--mut:#8b96ab;--bd:rgba(255,255,255,.08);--ac:#7c93ff;--sh:0 6px 28px rgba(0,0,0,.4)}
@@ -93,6 +92,8 @@ label{display:flex;flex-direction:column;gap:4px;font-size:.78rem;color:var(--mu
 </main>
 <div id="toast"></div>
 
+<!-- Chart.js at the end of the body: it no longer blocks the first paint -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script>
 const $=i=>document.getElementById(i);
 const META={temp_aht:["Temp. AHT20","°C","🌡️"],hum:["Umidità","%","💧"],temp_bmp:["Temp. BMP280","°C","🌡️"],
@@ -103,8 +104,9 @@ const GROUPS={c_temp:["Temperatura (°C)",["temp_aht","temp_bmp"]],c_hum:["Umidi
 const AQ=[[5,"Ottima","#22c55e"],[15,"Buona","#84cc16"],[50,"Moderata","#f59e0b"],[90,"Scadente","#f97316"],[140,"Molto scadente","#ef4444"],[1e9,"Pessima","#a21caf"]];
 const TILES=[["off","○","Spento","Sempre spento"],["on","●","Acceso","Sempre acceso"],["tx","⇄","Invio dati","Acceso quando invia"],["threshold","◐","Soglia","In base ai dati"],["blink","✦","Lampeggio","Periodo regolabile"]];
 const RANGES=[[15,"15 min"],[60,"1 h"],[360,"6 h"],[1440,"24 h"],[10080,"7 g"],[43200,"30 g"]];
-let last=null,sp=[],ST=null,minutes=60,INTERVAL=5,ledMode="tx";
-const j=async(u,o)=>(await fetch(u,o)).json();
+// sp = sparkline data in columnar format {ts:[], f:{field:[]}}
+let last=null,sp={ts:[],f:{}},ST=null,minutes=60,INTERVAL=5,ledMode="tx",lastHist=0,histReq=0;
+const j=async(u,o)=>{const r=await fetch(u,o);if(!r.ok)throw new Error(r.status);return r.json();};
 
 // ---- UI statica
 for(const k in META){
@@ -126,7 +128,7 @@ function setMode(m){ledMode=m;document.querySelectorAll(".tile").forEach(t=>t.cl
 const root=document.documentElement;
 root.dataset.theme=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");
 function chartTheme(){const s=getComputedStyle(root);Chart.defaults.color=s.getPropertyValue("--mut");Chart.defaults.borderColor=s.getPropertyValue("--bd");
-  Object.values(charts).forEach(c=>c.update());}
+  Object.values(charts).forEach(c=>c.update("none"));}
 $("theme").onclick=()=>{root.dataset.theme=root.dataset.theme=="dark"?"light":"dark";localStorage.setItem("theme",root.dataset.theme);chartTheme();};
 
 // ---- grafici
@@ -134,7 +136,7 @@ const charts={};
 for(const[id,[title,keys]]of Object.entries(GROUPS)){
   charts[id]=new Chart($(id),{type:"line",data:{labels:[],datasets:keys.map(k=>({label:META[k][0],data:[],borderColor:COL[k],
     backgroundColor:COL[k]+(keys.length==1?"22":"ff"),fill:keys.length==1,pointRadius:0,borderWidth:2,tension:.35,spanGaps:true}))},
-    options:{animation:false,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},
+    options:{animation:false,normalized:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},
       plugins:{title:{display:true,text:title},legend:{display:keys.length>1}},scales:{x:{ticks:{maxTicksLimit:6},grid:{display:false}}}}});
 }
 chartTheme();
@@ -146,6 +148,8 @@ function spark(vals,c){const v=vals.filter(x=>x!=null);if(v.length<2)return"";co
   const p=v.map((x,i)=>(i/(v.length-1)*100).toFixed(1)+","+(30-(x-lo)/((hi-lo)||1)*28).toFixed(1)).join(" ");
   return`<svg viewBox="0 0 100 32" preserveAspectRatio="none"><polyline fill="none" stroke="${c}" stroke-width="1.8" vector-effect="non-scaling-stroke" points="${p}"/></svg>`;}
 function toast(t){$("toast").textContent=t;$("toast").classList.add("s");setTimeout(()=>$("toast").classList.remove("s"),2500);}
+// polling only while the tab is visible
+const every=(f,ms)=>setInterval(()=>{if(!document.hidden)f();},ms);
 
 // ---- rendering
 function render(now){
@@ -160,9 +164,10 @@ function render(now){
   summary();ledPreview();
 }
 function summary(){
+  if(!last)return;
   const t=last.temp_aht,h=last.hum;let dp="–",cf="–",tr="–";
   if(t!=null&&h!=null){const g=Math.log(h/100)+17.62*t/(243.12+t);dp=(243.12*g/(17.62-g)).toFixed(1)+" °C";cf=h<30?"Aria secca":h>60?"Aria umida":"Confortevole";}
-  const ps=sp.map(r=>r.press).filter(v=>v!=null);
+  const ps=(sp.f.press||[]).filter(v=>v!=null);
   if(ps.length>5){const d=ps[ps.length-1]-ps[0];tr=(d>1?"↗ in salita":d<-1?"↘ in discesa":"→ stabile")+` (${d>0?"+":""}${d.toFixed(1)} hPa)`;}
   const rows=[["Punto di rugiada",dp],["Comfort",cf],["Pressione, ultime 3 h",tr]];
   if(ST){rows.push(["Letture nel database",ST.rows.toLocaleString("it")+" · "+fb(ST.db_bytes)],
@@ -183,15 +188,19 @@ function ledPreview(){
 // ---- caricamento dati
 async function latest(){try{const d=await j("/api/latest");last=d.reading;render(d.now);}
   catch(e){$("st").textContent="server non raggiungibile";$("st").className="pill";}}
-async function loadSpark(){sp=await j("/api/history?minutes=180");
-  for(const k in META)$("sp_"+k).innerHTML=spark(sp.map(r=>r[k]),COL[k]);
-  if(last)summary();}
+async function loadSpark(){try{sp=await j("/api/history?minutes=180");}catch(e){return;}
+  for(const k in META)$("sp_"+k).innerHTML=spark(sp.f[k]||[],COL[k]);
+  summary();}
 async function loadHistory(){
-  const rows=await j("/api/history?minutes="+minutes);
-  const f=ts=>{const d=new Date(ts*1000);return minutes>1440?d.toLocaleString("it",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):d.toLocaleTimeString("it",{hour:"2-digit",minute:"2-digit"});};
-  for(const[id,[,keys]]of Object.entries(GROUPS)){const c=charts[id];c.data.labels=rows.map(r=>f(r.ts));
-    keys.forEach((k,i)=>c.data.datasets[i].data=rows.map(r=>r[k]));c.update();}
-  for(const k in META){const v=rows.map(r=>r[k]).filter(x=>x!=null);
+  const id=++histReq;                         // ignore out-of-order responses when switching range quickly
+  let d;try{d=await j("/api/history?minutes="+minutes);}catch(e){return;}
+  if(id!==histReq)return;
+  lastHist=Date.now();
+  const f=ts=>{const x=new Date(ts*1000);return minutes>1440?x.toLocaleString("it",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):x.toLocaleTimeString("it",{hour:"2-digit",minute:"2-digit"});};
+  const labels=d.ts.map(f);
+  for(const[cid,[,keys]]of Object.entries(GROUPS)){const c=charts[cid];c.data.labels=labels;
+    keys.forEach((k,i)=>c.data.datasets[i].data=d.f[k]||[]);c.update("none");}
+  for(const k in META){const v=(d.f[k]||[]).filter(x=>x!=null);
     $("mm_"+k).textContent=v.length?`min ${Math.min(...v).toFixed(1)} · max ${Math.max(...v).toFixed(1)}`:"\u00a0";}
   $("csv").href="/api/export.csv?minutes="+minutes;
 }
@@ -202,10 +211,17 @@ $("save").onclick=async()=>{
   const c=await j("/api/led",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({mode:ledMode,
     metric:$("metric").value,cmp:$("cmp").value,threshold:$("threshold").value,blink_ms:$("blink_ms").value,interval:$("interval").value})});
   INTERVAL=c.interval;toast("Salvato · verrà applicato al prossimo invio");};
-const stats=async()=>{try{ST=await j("/api/stats");}catch(e){}};
+const stats=async()=>{try{ST=await j("/api/stats");summary();}catch(e){}};
 
-(async()=>{await loadLed();await Promise.all([latest(),stats(),loadSpark(),loadHistory()]);summary();})();
-setInterval(latest,3000);setInterval(loadHistory,20000);setInterval(loadSpark,30000);setInterval(stats,60000);
+// everything starts in parallel (no more waiting for /api/led first)
+loadLed().catch(()=>{});
+latest();stats();loadSpark();loadHistory();
+
+every(latest,3000);
+every(()=>{ if(minutes<=60||Date.now()-lastHist>60000) loadHistory(); },20000); // long ranges change slowly
+every(loadSpark,60000);
+every(stats,120000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden){latest();loadHistory();loadSpark();}});
 </script>
 </body>
 </html>
